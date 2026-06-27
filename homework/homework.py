@@ -4,6 +4,10 @@ Escriba el codigo que ejecute la accion solicitada.
 
 # pylint: disable=import-outside-toplevel
 
+import os
+import glob
+import pandas as pd
+
 
 def clean_campaign_data():
     """
@@ -49,9 +53,127 @@ def clean_campaign_data():
 
 
     """
+    archivos = sorted(glob.glob("files/input/*.csv.zip"))
 
+    dataframes = []
+
+    for archivo in archivos:
+        df = pd.read_csv(
+            archivo,
+            compression="zip",
+        )
+
+        if "Unnamed: 0" in df.columns:
+            df = df.drop(columns=["Unnamed: 0"])
+
+        dataframes.append(df)
+
+    data = pd.concat(dataframes, ignore_index=True)
+
+    os.makedirs("files/output", exist_ok=True)
+
+    # ==========================
+    # CLIENT
+    # ==========================
+
+    client = pd.DataFrame()
+
+    client["client_id"] = data["client_id"]
+    client["age"] = data["age"]
+
+    client["job"] = (
+        data["job"]
+        .str.replace(".", "", regex=False)
+        .str.replace("-", "_", regex=False)
+    )
+
+    client["marital"] = data["marital"]
+
+    client["education"] = (
+        data["education"]
+        .str.replace(".", "_", regex=False)
+        .replace("unknown", pd.NA)
+    )
+
+    client["credit_default"] = (
+        data["credit_default"]
+        .map(lambda x: 1 if x == "yes" else 0)
+    )
+
+    client["mortgage"] = (
+        data["mortgage"]
+        .map(lambda x: 1 if x == "yes" else 0)
+    )
+
+    client.to_csv(
+        "files/output/client.csv",
+        index=False,
+    )
+
+    # ==========================
+    # CAMPAIGN
+    # ==========================
+
+    campaign = pd.DataFrame()
+
+    campaign["client_id"] = data["client_id"]
+    campaign["number_contacts"] = data["number_contacts"]
+    campaign["contact_duration"] = data["contact_duration"]
+    campaign["previous_campaign_contacts"] = data["previous_campaign_contacts"]
+
+    campaign["previous_outcome"] = (
+        data["previous_outcome"]
+        .map(lambda x: 1 if x == "success" else 0)
+    )
+
+    campaign["campaign_outcome"] = (
+        data["campaign_outcome"]
+        .map(lambda x: 1 if x == "yes" else 0)
+    )
+
+    meses = {
+        "jan": "01",
+        "feb": "02",
+        "mar": "03",
+        "apr": "04",
+        "may": "05",
+        "jun": "06",
+        "jul": "07",
+        "aug": "08",
+        "sep": "09",
+        "oct": "10",
+        "nov": "11",
+        "dec": "12",
+    }
+
+    campaign["last_contact_date"] = (
+        "2022-"
+        + data["month"].map(meses)
+        + "-"
+        + data["day"].astype(str).str.zfill(2)
+    )
+
+    campaign.to_csv(
+        "files/output/campaign.csv",
+        index=False,
+    )
+
+    # ==========================
+    # ECONOMICS
+    # ==========================
+
+    economics = pd.DataFrame()
+
+    economics["client_id"] = data["client_id"]
+    economics["cons_price_idx"] = data["cons_price_idx"]
+    economics["euribor_three_months"] = data["euribor_three_months"]
+
+    economics.to_csv(
+        "files/output/economics.csv",
+        index=False,
+    )
+    
     return
-
 
 if __name__ == "__main__":
     clean_campaign_data()
